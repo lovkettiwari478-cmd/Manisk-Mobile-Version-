@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: manisk
+      POSTGRES_PASSWORD: manisk123
+      POSTGRES_DB: manisk
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://manisk:manisk123@db/manisk
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: your-super-secret-key
+    volumes:
+      - .:/app
+
+  worker:
+    build: .
+    command: celery -A app.worker worker --loglevel=info
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://manisk:manisk123@db/manisk
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - .:/app
+
+  frontend:
+    image: node:18
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      REACT_APP_API_URL: http://api:8000
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  pg_data:
